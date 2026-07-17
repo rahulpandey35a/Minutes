@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14171C">
+<title>Minute — Record & Extract</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171C;
+    --surface:#1C2027;
+    --surface2:#242A33;
+    --ink:#E8E6DF;
+    --ink-dim:#9BA1AB;
+    --amber:#D9A441;
+    --teal:#4A7C82;
+    --red:#C1533C;
+    --line:#2E343E;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:20px 18px 80px;}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;padding-top:env(safe-area-inset-top);}
+  header h1{font-family:'Spectral',serif;font-weight:600;font-size:22px;margin:0;letter-spacing:0.2px;}
+  header .tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);letter-spacing:0.5px;}
+
+  .stamp{
+    width:96px;height:96px;border-radius:50%;
+    border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    margin:8px auto 18px;
+    position:relative;
+    transition:border-color .3s, box-shadow .3s;
+  }
+  .stamp::before{
+    content:'';position:absolute;inset:8px;border-radius:50%;border:1px solid var(--line);transition:border-color .3s;
+  }
+  .stamp .dot{width:14px;height:14px;border-radius:50%;background:var(--ink-dim);transition:background .3s, box-shadow .3s;}
+  .stamp.recording{border-color:var(--red);}
+  .stamp.recording::before{border-color:var(--red);}
+  .stamp.recording .dot{background:var(--red);box-shadow:0 0 0 6px rgba(193,83,60,0.15);animation:pulse 1.4s infinite;}
+  .stamp.processing{border-color:var(--amber);}
+  .stamp.processing::before{border-color:var(--amber);}
+  .stamp.processing .dot{background:var(--amber);animation:spin 1s linear infinite;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(193,83,60,0.12);}50%{box-shadow:0 0 0 10px rgba(193,83,60,0.05);}}
+  @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+
+  .status-label{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-dim);margin-bottom:4px;}
+  .timer{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:28px;color:var(--ink);margin-bottom:18px;}
+
+  .controls{display:flex;gap:10px;justify-content:center;margin-bottom:22px;}
+  button{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:14px;font-weight:500;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--ink);
+    padding:12px 20px;
+    cursor:pointer;
+    transition:background .15s, border-color .15s, transform .1s;
+  }
+  button:active{transform:scale(0.97);}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  button.primary{background:var(--amber);border-color:var(--amber);color:#1A1400;font-weight:600;}
+  button.danger{background:var(--red);border-color:var(--red);color:#fff;}
+  button:disabled{opacity:0.4;cursor:not-allowed;}
+  button.ghost{background:transparent;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;text-transform:uppercase;letter-spacing:1.2px;
+    color:var(--ink-dim);margin:0 0 12px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .card h2 .count{color:var(--amber);}
+
+  #transcript{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;line-height:1.7;
+    white-space:pre-wrap;word-wrap:break-word;
+    min-height:60px;
+    color:var(--ink);
+    outline:none;
+  }
+  #transcript:empty::before{content:'Transcript will appear here after recording.';color:var(--ink-dim);}
+  #transcript mark{background:rgba(217,164,65,0.22);color:var(--amber);border-radius:3px;padding:0 2px;}
+
+  .action-item{
+    display:flex;gap:10px;align-items:flex-start;
+    padding:10px 0;border-bottom:1px solid var(--line);
+    font-size:14px;line-height:1.5;
+  }
+  .action-item:last-child{border-bottom:none;}
+  .action-item input[type=checkbox]{margin-top:3px;accent-color:var(--amber);width:16px;height:16px;flex-shrink:0;}
+  .action-item .txt{flex:1;}
+  .action-item .txt.done{text-decoration:line-through;color:var(--ink-dim);}
+  .action-item .rm{background:none;border:none;color:var(--ink-dim);cursor:pointer;padding:2px 6px;font-size:16px;}
+  .empty-note{color:var(--ink-dim);font-size:13px;font-style:italic;}
+
+  .glossary-row{display:flex;gap:8px;margin-bottom:8px;}
+  .glossary-row input{flex:1;background:var(--surface2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 10px;font-size:14px;}
+  .glossary-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .gtag{background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:4px 10px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--amber);display:flex;align-items:center;gap:6px;}
+  .gtag button{background:none;border:none;padding:0;color:var(--ink-dim);cursor:pointer;font-size:13px;}
+
+  select{background:var(--surface2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .small{font-size:12px;color:var(--ink-dim);}
+  .progress-wrap{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:10px;}
+  .progress-bar{height:100%;background:var(--amber);width:0%;transition:width .2s;}
+
+  .toolbar{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .toolbar button{padding:8px 14px;font-size:13px;}
+
+  details summary{cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-dim);}
+  details[open] summary{margin-bottom:12px;}
+
+  footer{text-align:center;color:var(--ink-dim);font-size:11px;font-family:'IBM Plex Mono',monospace;margin-top:24px;}
+
+  ::selection{background:rgba(217,164,65,0.35);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Minute</h1>
+    <span class="tag">on-device · private</span>
+  </header>
+
+  <div class="stamp" id="stamp"><div class="dot"></div></div>
+  <div class="status-label" id="statusLabel">Idle</div>
+  <div class="timer" id="timer">00:00</div>
+
+  <div class="controls">
+    <button class="primary" id="recordBtn">Start recording</button>
+    <button class="ghost" id="loadModelBtn">Load model</button>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap" style="display:none;">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Settings</summary>
+      <div class="row" style="margin-bottom:10px;">
+        <span class="small">Model size</span>
+        <select id="modelSelect">
+          <option value="Xenova/whisper-tiny">Tiny — fastest, lower accuracy</option>
+          <option value="Xenova/whisper-base" selected>Base — balanced (recommended)</option>
+          <option value="Xenova/whisper-small">Small — most accurate, slower</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="small">Language hint</span>
+        <select id="langSelect">
+          <option value="">Auto-detect (mixed Hindi/English)</option>
+          <option value="hindi">Hindi</option>
+          <option value="english">English</option>
+        </select>
+      </div>
+      <p class="small" style="margin-top:12px;">Larger models are more accurate but take longer to download the first time and run slower on-device. Nothing is uploaded anywhere — all transcription happens in this browser tab.</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Nomenclature glossary</h2>
+    <div class="glossary-row">
+      <input type="text" id="glossaryInput" placeholder="Add a term (e.g. a department abbreviation)">
+      <button id="glossaryAdd">Add</button>
+    </div>
+    <div class="glossary-tags" id="glossaryTags"></div>
+    <p class="small" style="margin-top:10px;">Terms here get highlighted in the transcript so they're easy to spot. This doesn't correct transcription — it just helps you scan for words the model may have gotten wrong.</p>
+  </div>
+
+  <div class="card">
+    <h2>Transcript <span class="small" id="wordCount"></span></h2>
+    <div id="transcript" contenteditable="true"></div>
+    <div class="toolbar">
+      <button id="copyTranscript">Copy</button>
+      <button id="extractBtn">Extract action items</button>
+      <button id="clearTranscript" class="ghost">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Action items <span class="count" id="actionCount"></span></h2>
+    <div id="actionList"><p class="empty-note">Run "Extract action items" once you have a transcript.</p></div>
+    <div class="toolbar">
+      <input type="text" id="manualAction" placeholder="Add an item manually" style="flex:1;background:var(--surface2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:9px 10px;font-size:14px;">
+      <button id="manualAdd">Add</button>
+    </div>
+  </div>
+
+  <footer>Audio never leaves this device. Recordings and transcripts are stored only in this browser.</footer>
+</div>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+// ---------- State ----------
+let mediaRecorder, audioChunks = [];
+let stream;
+let transcriber = null;
+let recording = false;
+let timerInterval, startTime;
+let glossary = JSON.parse(localStorage.getItem('minute-glossary') || '[]');
+let actionItems = JSON.parse(localStorage.getItem('minute-actions') || '[]');
+
+const stamp = document.getElementById('stamp');
+const statusLabel = document.getElementById('statusLabel');
+const timerEl = document.getElementById('timer');
+const recordBtn = document.getElementById('recordBtn');
+const loadModelBtn = document.getElementById('loadModelBtn');
+const transcriptEl = document.getElementById('transcript');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+const modelSelect = document.getElementById('modelSelect');
+const langSelect = document.getElementById('langSelect');
+const wordCountEl = document.getElementById('wordCount');
+const actionCountEl = document.getElementById('actionCount');
+const actionListEl = document.getElementById('actionList');
+
+// ---------- Persisted content on load ----------
+transcriptEl.textContent = localStorage.getItem('minute-transcript') || '';
+renderGlossary();
+renderActions();
+updateWordCount();
+
+transcriptEl.addEventListener('input', () => {
+  localStorage.setItem('minute-transcript', transcriptEl.textContent);
+  updateWordCount();
+});
+
+function updateWordCount(){
+  const words = transcriptEl.textContent.trim().split(/\s+/).filter(Boolean).length;
+  wordCountEl.textContent = words ? `· ${words} words` : '';
+}
+
+// ---------- Model loading ----------
+async function ensureModel(){
+  if (transcriber) return transcriber;
+  setStatus('processing', 'Loading model…');
+  progressWrap.style.display = 'block';
+  loadModelBtn.disabled = true;
+  try{
+    transcriber = await pipeline('automatic-speech-recognition', modelSelect.value, {
+      progress_callback: (p) => {
+        if (p.status === 'progress' && p.total) {
+          const pct = Math.round((p.loaded / p.total) * 100);
+          progressBar.style.width = pct + '%';
+        }
+      }
+    });
+    setStatus('idle', 'Model ready');
+  } catch(err){
+    console.error(err);
+    setStatus('idle', 'Model load failed — check connection');
+    transcriber = null;
+  } finally {
+    progressWrap.style.display = 'none';
+    loadModelBtn.disabled = false;
+  }
+  return transcriber;
+}
+loadModelBtn.addEventListener('click', ensureModel);
+
+// ---------- Recording ----------
+recordBtn.addEventListener('click', async () => {
+  if (!recording) {
+    await startRecording();
+  } else {
+    stopRecording();
+  }
+});
+
+async function startRecording(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(err){
+    setStatus('idle', 'Microphone permission denied');
+    return;
+  }
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = handleRecordingStop;
+  mediaRecorder.start();
+  recording = true;
+  recordBtn.textContent = 'Stop recording';
+  recordBtn.classList.add('danger');
+  recordBtn.classList.remove('primary');
+  setStatus('recording', 'Recording');
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 250);
+}
+
+function stopRecording(){
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  recording = false;
+  recordBtn.textContent = 'Start recording';
+  recordBtn.classList.remove('danger');
+  recordBtn.classList.add('primary');
+  clearInterval(timerInterval);
+}
+
+function updateTimer(){
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+  const s = String(elapsed % 60).padStart(2,'0');
+  timerEl.textContent = `${m}:${s}`;
+}
+
+async function handleRecordingStop(){
+  setStatus('processing', 'Transcribing…');
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+  try{
+    const model = await ensureModel();
+    if (!model) { setStatus('idle', 'Idle'); progressWrap.style.display='none'; return; }
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    const audioData = await decodeAudio(blob);
+    const options = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' };
+    if (langSelect.value) options.language = langSelect.value;
+    const result = await model(audioData, options);
+    const text = (result.text || '').trim();
+    const existing = transcriptEl.textContent.trim();
+    transcriptEl.textContent = existing ? existing + '\n\n' + text : text;
+    localStorage.setItem('minute-transcript', transcriptEl.textContent);
+    updateWordCount();
+    applyGlossaryHighlight();
+    setStatus('idle', 'Idle');
+  } catch(err){
+    console.error(err);
+    setStatus('idle', 'Transcription failed');
+  } finally {
+    progressWrap.style.display = 'none';
+    timerEl.textContent = '00:00';
+  }
+}
+
+async function decodeAudio(blob){
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+  // downmix to mono
+  let channelData;
+  if (decoded.numberOfChannels > 1) {
+    const ch0 = decoded.getChannelData(0);
+    const ch1 = decoded.getChannelData(1);
+    channelData = new Float32Array(ch0.length);
+    for (let i=0;i<ch0.length;i++) channelData[i] = (ch0[i] + ch1[i]) / 2;
+  } else {
+    channelData = decoded.getChannelData(0);
+  }
+  await audioCtx.close();
+  return channelData;
+}
+
+function setStatus(mode, label){
+  stamp.classList.remove('recording','processing');
+  if (mode === 'recording') stamp.classList.add('recording');
+  if (mode === 'processing') stamp.classList.add('processing');
+  statusLabel.textContent = label;
+}
+
+// ---------- Glossary ----------
+document.getElementById('glossaryAdd').addEventListener('click', addGlossaryTerm);
+document.getElementById('glossaryInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addGlossaryTerm(); });
+
+function addGlossaryTerm(){
+  const input = document.getElementById('glossaryInput');
+  const term = input.value.trim();
+  if (!term || glossary.includes(term)) { input.value=''; return; }
+  glossary.push(term);
+  localStorage.setItem('minute-glossary', JSON.stringify(glossary));
+  input.value = '';
+  renderGlossary();
+  applyGlossaryHighlight();
+}
+
+function renderGlossary(){
+  const el = document.getElementById('glossaryTags');
+  el.innerHTML = '';
+  glossary.forEach((term, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'gtag';
+    tag.innerHTML = `${escapeHtml(term)} <button data-i="${i}">✕</button>`;
+    tag.querySelector('button').addEventListener('click', () => {
+      glossary.splice(i, 1);
+      localStorage.setItem('minute-glossary', JSON.stringify(glossary));
+      renderGlossary();
+      applyGlossaryHighlight();
+    });
+    el.appendChild(tag);
+  });
+}
+
+function applyGlossaryHighlight(){
+  if (glossary.length === 0) return;
+  let html = escapeHtml(transcriptEl.textContent);
+  glossary.forEach(term => {
+    if (!term) return;
+    const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(${esc})`, 'gi');
+    html = html.replace(re, '<mark>$1</mark>');
+  });
+  transcriptEl.innerHTML = html;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- Action item extraction (rule-based, free, local) ----------
+const ACTION_PATTERNS = [
+  /\bneed(s)? to\b/i, /\bwill\b/i, /\bshould\b/i, /\bmust\b/i, /\bhas to\b/i, /\bhave to\b/i,
+  /\bto do\b/i, /\baction[: ]/i, /\bfollow[- ]?up\b/i, /\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week|end of|\d{1,2}(st|nd|rd|th)?)\b/i,
+  /\bresponsible\b/i, /\bassign(ed)?\b/i, /\bdeadline\b/i, /\bplease\b/i, /\bensure\b/i,
+  /करना है/, /करेंगे/, /करना पड़ेगा/, /जिम्मेदारी/, /तक पूरा/, /ध्यान दें/, /सुनिश्चित/
+];
+
+document.getElementById('extractBtn').addEventListener('click', () => {
+  const text = transcriptEl.textContent;
+  const sentences = text.split(/(?<=[.।!?])\s+|\n+/).map(s => s.trim()).filter(Boolean);
+  const found = sentences.filter(s => ACTION_PATTERNS.some(p => p.test(s)));
+  found.forEach(s => {
+    if (!actionItems.some(a => a.text === s)) {
+      actionItems.push({ text: s, done: false });
+    }
+  });
+  localStorage.setItem('minute-actions', JSON.stringify(actionItems));
+  renderActions();
+});
+
+document.getElementById('manualAdd').addEventListener('click', addManualAction);
+document.getElementById('manualAction').addEventListener('keydown', (e) => { if (e.key === 'Enter') addManualAction(); });
+
+function addManualAction(){
+  const input = document.getElementById('manualAction');
+  const val = input.value.trim();
+  if (!val) return;
+  actionItems.push({ text: val, done: false });
+  localStorage.setItem('minute-actions', JSON.stringify(actionItems));
+  input.value = '';
+  renderActions();
+}
+
+function renderActions(){
+  actionCountEl.textContent = actionItems.length ? String(actionItems.length) : '';
+  if (actionItems.length === 0) {
+    actionListEl.innerHTML = '<p class="empty-note">Run "Extract action items" once you have a transcript.</p>';
+    return;
+  }
+  actionListEl.innerHTML = '';
+  actionItems.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'action-item';
+    row.innerHTML = `
+      <input type="checkbox" ${item.done ? 'checked' : ''} data-i="${i}">
+      <span class="txt ${item.done ? 'done' : ''}">${escapeHtml(item.text)}</span>
+      <button class="rm" data-i="${i}">✕</button>
+    `;
+    row.querySelector('input').addEventListener('change', (e) => {
+      actionItems[i].done = e.target.checked;
+      localStorage.setItem('minute-actions', JSON.stringify(actionItems));
+      renderActions();
+    });
+    row.querySelector('.rm').addEventListener('click', () => {
+      actionItems.splice(i, 1);
+      localStorage.setItem('minute-actions', JSON.stringify(actionItems));
+      renderActions();
+    });
+    actionListEl.appendChild(row);
+  });
+}
+
+// ---------- Toolbar ----------
+document.getElementById('copyTranscript').addEventListener('click', () => {
+  navigator.clipboard.writeText(transcriptEl.textContent).then(() => {
+    const btn = document.getElementById('copyTranscript');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied';
+    setTimeout(() => btn.textContent = orig, 1200);
+  });
+});
+
+document.getElementById('clearTranscript').addEventListener('click', () => {
+  if (confirm('Clear the transcript? This cannot be undone.')) {
+    transcriptEl.textContent = '';
+    localStorage.removeItem('minute-transcript');
+    updateWordCount();
+  }
+});
+
+// ---------- Service worker ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed', err));
+  });
+}
+</script>
+</body>
+</html>
