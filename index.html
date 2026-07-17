@@ -157,8 +157,11 @@
 
   <div class="controls">
     <button class="primary" id="recordBtn">Start recording</button>
+    <button class="ghost" id="uploadBtn">Upload recording</button>
     <button class="ghost" id="loadModelBtn">Load model</button>
   </div>
+  <input type="file" id="fileInput" accept="audio/*" style="display:none;">
+  <p class="small" style="text-align:center;margin-top:-10px;margin-bottom:18px;">Works with or without a glossary below — the glossary is optional and only highlights terms, it isn't required to transcribe.</p>
 
   <div class="progress-wrap" id="progressWrap" style="display:none;">
     <div class="progress-bar" id="progressBar"></div>
@@ -340,13 +343,18 @@ function updateTimer(){
 }
 
 async function handleRecordingStop(){
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  await transcribeBlob(blob);
+  timerEl.textContent = '00:00';
+}
+
+async function transcribeBlob(blob){
   setStatus('processing', 'Transcribing…');
   progressWrap.style.display = 'block';
   progressBar.style.width = '0%';
   try{
     const model = await ensureModel();
     if (!model) { setStatus('idle', 'Idle'); progressWrap.style.display='none'; return; }
-    const blob = new Blob(audioChunks, { type: 'audio/webm' });
     const audioData = await decodeAudio(blob);
     const options = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe' };
     if (langSelect.value) options.language = langSelect.value;
@@ -360,12 +368,22 @@ async function handleRecordingStop(){
     setStatus('idle', 'Idle');
   } catch(err){
     console.error(err);
-    setStatus('idle', 'Transcription failed');
+    setStatus('idle', 'Transcription failed — the file format may be unsupported. Try m4a, mp3, or wav.');
   } finally {
     progressWrap.style.display = 'none';
-    timerEl.textContent = '00:00';
   }
 }
+
+document.getElementById('uploadBtn').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await transcribeBlob(file);
+  e.target.value = '';
+});
 
 async function decodeAudio(blob){
   const arrayBuffer = await blob.arrayBuffer();

@@ -25,9 +25,11 @@ Free, on-device (Whisper via transformers.js) meeting recorder, transcript, and 
 
 ## 3. Using it
 
-- **Start recording** → speak → **Stop recording** → transcript appears after a short on-device processing pause.
+- **Start recording** → speak → **Stop recording** → transcript appears after a short on-device processing pause. OR
+- **Upload recording** → pick an existing audio file (m4a, mp3, wav, etc. — e.g. a Voice Memos recording) → transcribes the same way.
+- Transcription works fully standalone — the glossary is optional and never required. You can record/upload and get a transcript with zero setup.
 - Tap **Extract action items** to pull likely action sentences (rule-based: looks for phrases like "need to," "will," "by Friday," "follow up," and Hindi equivalents).
-- Add your department's abbreviations/terms under **Nomenclature glossary** — they'll highlight in the transcript so you can spot-check the model's guesses.
+- Add your department's abbreviations/terms under **Nomenclature glossary** — they'll highlight in the transcript so you can spot-check the model's guesses. This is purely optional polish, not a dependency.
 - Everything (transcript, action items, glossary) persists in the browser via localStorage — clearing Safari's site data will erase it.
 
 ## Known limitations (by design, to stay free and private)
